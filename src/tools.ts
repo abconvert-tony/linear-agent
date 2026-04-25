@@ -25,6 +25,50 @@ const BODY_PARAMETERS = {
   },
 } as const;
 
+const POST_THOUGHT_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  required: ["body"],
+  properties: {
+    body: {
+      type: "string",
+      minLength: 1,
+      description: "Markdown narration shown in the Linear session UI.",
+    },
+    ephemeral: {
+      type: "boolean",
+      description:
+        "If true, the thought is removed once another activity is posted. Use for fleeting status (e.g. 'fetching repo state…') that the next activity replaces.",
+    },
+  },
+} as const;
+
+const POST_ACTION_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  required: ["action", "parameter"],
+  properties: {
+    action: {
+      type: "string",
+      minLength: 1,
+      maxLength: 64,
+      description:
+        "Short verb describing what's being done (e.g. 'read_file', 'run_tests', 'open_pr').",
+    },
+    parameter: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Human-readable argument for the action (e.g. a file path, an issue id, a search query). Required by Linear's schema.",
+    },
+    result: {
+      type: "string",
+      description:
+        "Markdown summary of what the action returned. Omit on the first call to indicate work-in-progress; post a second action activity with the same action+parameter and the filled-in result when the work completes.",
+    },
+  },
+} as const;
+
 const ATTACH_EXTERNAL_URL_PARAMETERS = {
   type: "object",
   additionalProperties: false,
@@ -134,6 +178,74 @@ export const terminalToolFactories: { name: string; factory: PluginToolFactory }
     name: spec.name,
     factory: createTerminalTool(spec),
   }));
+
+export function createPostThoughtTool(
+  api: OpenClawPluginApi,
+): PluginToolFactory {
+  return (ctx): PluginAgentTool | null => {
+    const binding = getBinding(ctx);
+    if (!binding) return null;
+    return {
+      name: "linear_post_thought",
+      label: "Linear: post thought",
+      description:
+        "Post a non-terminal narration to the active Linear agent session. Use for mid-run progress updates ('inspecting repo…', 'drafting reply…'). Does not end the turn — finish with linear_post_response/error/elicitation.",
+      parameters: POST_THOUGHT_PARAMETERS,
+      execute: async (_toolCallId, params) => {
+        const body = readNonEmptyString(params, "body");
+        const ephemeral = params.ephemeral === true;
+        const ok = await postActivity(
+          binding.linear,
+          binding.linearSessionId,
+          { type: "thought", body },
+          ephemeral,
+        );
+        if (!ok) {
+          throw new Error("Linear rejected thought post for this session.");
+        }
+        return textResult(
+          ephemeral ? "Ephemeral thought posted." : "Thought posted.",
+        );
+      },
+    };
+  };
+}
+
+export function createPostActionTool(
+  api: OpenClawPluginApi,
+): PluginToolFactory {
+  return (ctx): PluginAgentTool | null => {
+    const binding = getBinding(ctx);
+    if (!binding) return null;
+    return {
+      name: "linear_post_action",
+      label: "Linear: post action",
+      description:
+        "Post a non-terminal action activity describing a tool/operation the agent is performing. Linear renders this as a structured 'action' card with action+parameter+result. Call without `result` to announce work-in-progress, then call again with the same action+parameter and a filled-in `result` when complete.",
+      parameters: POST_ACTION_PARAMETERS,
+      execute: async (_toolCallId, params) => {
+        const action = readNonEmptyString(params, "action");
+        const parameter = readNonEmptyString(params, "parameter");
+        const result =
+          typeof params.result === "string" && params.result.trim().length > 0
+            ? params.result
+            : undefined;
+        const ok = await postActivity(binding.linear, binding.linearSessionId, {
+          type: "action",
+          action,
+          parameter,
+          result,
+        });
+        if (!ok) {
+          throw new Error("Linear rejected action post for this session.");
+        }
+        return textResult(
+          result ? `Action posted: ${action} → result.` : `Action posted: ${action} (in progress).`,
+        );
+      },
+    };
+  };
+}
 
 export function createAttachExternalUrlTool(
   api: OpenClawPluginApi,

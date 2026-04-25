@@ -32,6 +32,8 @@ active `sessionKey`).
 
 | Tool | Maps to | Use |
 |------|---------|-----|
+| `linear_post_thought`      | `AgentActivityCreateInput { type: "thought" }`      | Non-terminal: mid-run narration. Set `ephemeral: true` for fleeting status that the next activity replaces |
+| `linear_post_action`       | `AgentActivityActionContent { action, parameter, result? }` | Non-terminal: structured "action" card. Post once without `result` to announce work-in-progress, then again with the same `action`+`parameter` and a filled-in `result` when done |
 | `linear_post_response`     | `AgentActivityCreateInput { type: "response" }`     | Terminal: the agent's final reply for this turn |
 | `linear_post_error`        | `AgentActivityCreateInput { type: "error" }`        | Terminal: surface a failure to the requester |
 | `linear_post_elicitation`  | `AgentActivityCreateInput { type: "elicitation" }`  | Terminal: pause and ask the user for more info |
@@ -86,7 +88,7 @@ Optional config keys: `linearScopes` (default `read,write,app:assignable,app:men
 Look for the load line:
 
 ```
-linear-agent: routes registered under /linear-agent (connect, callback, webhook); tools: linear_post_{response,error,elicitation}, linear_attach_external_url
+linear-agent: routes registered under /linear-agent (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_attach_external_url
 ```
 
 ### 4. Install the agent into your Linear workspace

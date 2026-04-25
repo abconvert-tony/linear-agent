@@ -6,6 +6,8 @@ import {
 import { createWebhookHandler } from "./src/webhook.js";
 import {
   createAttachExternalUrlTool,
+  createPostActionTool,
+  createPostThoughtTool,
   terminalToolFactories,
 } from "./src/tools.js";
 
@@ -31,12 +33,20 @@ export default function register(api: OpenClawPluginApi): void {
   for (const { name, factory } of terminalToolFactories) {
     api.registerTool(factory, { name, optional: true });
   }
+  api.registerTool(createPostThoughtTool(api), {
+    name: "linear_post_thought",
+    optional: true,
+  });
+  api.registerTool(createPostActionTool(api), {
+    name: "linear_post_action",
+    optional: true,
+  });
   api.registerTool(createAttachExternalUrlTool(api), {
     name: "linear_attach_external_url",
     optional: true,
   });
 
   api.logger.info?.(
-    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{response,error,elicitation}, linear_attach_external_url`,
+    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_attach_external_url`,
   );
 }
