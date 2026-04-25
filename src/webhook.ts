@@ -27,7 +27,6 @@ import {
 import {
   createClient,
   createComment,
-  fetchCommentThreadRoot,
   fetchSessionActivities,
   fetchStateIdByType,
   fetchViewer,
@@ -320,15 +319,21 @@ async function processEvent(
     readString(readObject(agentActivity?.sourceComment)?.userId) ??
     readString(readObject(data.actor)?.id) ??
     "";
-  // "prompted" events surface the user's new comment as agentActivity.sourceCommentId
-  // (flat, per AgentActivityWebhookPayload). "created" events instead attach the
-  // @-mention to the session itself, surfaced as agentSession.comment.
-  const sourceCommentId =
+  // The session anchors a single thread. agentSession.commentId is the
+  // top-level comment Linear created or attached when the session began,
+  // and stays put across prompted turns — that's the only valid parentId
+  // for threaded replies (Linear forbids replies-to-replies).
+  // agentActivity.sourceCommentId is the *spawn point* of the current turn
+  // (a reply within the thread on prompted events) — useful as context but
+  // not as a parentId.
+  const threadParentId =
+    readString(sessionObj?.commentId) ??
+    readString(readObject(sessionObj?.comment)?.id) ??
+    "";
+  const turnSourceCommentId =
     readString(agentActivity?.sourceCommentId) ??
     readString(readObject(agentActivity?.sourceComment)?.id) ??
-    readString(readObject(sessionObj?.comment)?.id) ??
-    readString(readObject(data.comment)?.id) ??
-    "";
+    threadParentId;
 
   // Cheap skips first — no token load for events we'll drop.
   if (!action && signal !== "stop") {
@@ -375,25 +380,8 @@ async function processEvent(
     return;
   }
 
-  // Resolve to the thread root so parentId is always a top-level comment
-  // (Linear rejects nested threading). Optimistic fallback to the raw source
-  // id keeps the flow alive if the lookup itself fails — only loses if Linear
-  // then rejects, which we surface in the call-site error.
-  let threadParentId = sourceCommentId;
-  if (sourceCommentId) {
-    try {
-      const root = await fetchCommentThreadRoot(linear, sourceCommentId);
-      if (root) threadParentId = root;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      api.logger.warn?.(
-        `linear-agent: thread root lookup failed (${msg}); using source comment id as parent`,
-      );
-    }
-  }
-
   api.logger.info?.(
-    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} sourceCommentId=${sourceCommentId ? sourceCommentId.slice(0, 8) : "(none)"} threadParent=${threadParentId ? threadParentId.slice(0, 8) : "(none)"}`,
+    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} threadParent=${threadParentId ? threadParentId.slice(0, 8) : "(none)"} turnSource=${turnSourceCommentId ? turnSourceCommentId.slice(0, 8) : "(none)"}`,
   );
 
   // Stop signal: acknowledge and halt; no agent run.

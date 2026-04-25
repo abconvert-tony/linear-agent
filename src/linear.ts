@@ -202,18 +202,6 @@ export async function createComment(
   return payload.success === true;
 }
 
-// Linear allows only one level of comment threading. To reply under a comment
-// that is itself a reply, we have to use that reply's parent (the thread root)
-// as the parentId. Returns the id to use as parentId, or undefined on failure.
-export async function fetchCommentThreadRoot(
-  client: LinearClient,
-  commentId: string,
-): Promise<string | undefined> {
-  if (!commentId) return undefined;
-  const comment = await client.comment({ id: commentId });
-  return comment.parentId ?? comment.id;
-}
-
 export type ExternalUrlInput = NonNullable<
   AgentSessionUpdateInput["addedExternalUrls"]
 >[number];
