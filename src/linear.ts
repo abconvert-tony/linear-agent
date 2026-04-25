@@ -210,6 +210,17 @@ export async function createComment(
   };
 }
 
+// Linear allows only one level of comment threading. Given any comment id,
+// returns the id of its thread root — which is the only valid parentId.
+export async function fetchCommentThreadRoot(
+  client: LinearClient,
+  commentId: string,
+): Promise<string | undefined> {
+  if (!commentId) return undefined;
+  const comment = await client.comment({ id: commentId });
+  return comment.parentId ?? comment.id;
+}
+
 export type ExternalUrlInput = NonNullable<
   AgentSessionUpdateInput["addedExternalUrls"]
 >[number];
