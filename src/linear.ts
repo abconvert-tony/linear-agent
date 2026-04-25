@@ -86,14 +86,17 @@ export async function fetchViewer(
   };
 }
 
-export type WorkflowStateType =
-  | "triage"
-  | "backlog"
-  | "unstarted"
-  | "started"
-  | "completed"
-  | "canceled"
-  | "duplicate";
+export const WORKFLOW_STATE_TYPES = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+  "completed",
+  "canceled",
+  "duplicate",
+] as const;
+
+export type WorkflowStateType = (typeof WORKFLOW_STATE_TYPES)[number];
 
 export async function fetchStateIdByType(
   client: LinearClient,
@@ -113,14 +116,6 @@ export async function fetchStateIdByType(
     (a, b) => (a.position ?? 0) - (b.position ?? 0),
   );
   return sorted[0]?.id;
-}
-
-/** @deprecated kept for the existing applyIssuePolicies call site. */
-export async function fetchStartedStateId(
-  client: LinearClient,
-  teamId: string,
-): Promise<string | undefined> {
-  return fetchStateIdByType(client, teamId, "started");
 }
 
 export interface IssuePatch {
@@ -192,11 +187,14 @@ export interface ExternalUrlInput {
   url: string;
 }
 
-export type PlanStepStatus =
-  | "pending"
-  | "inProgress"
-  | "completed"
-  | "canceled";
+export const PLAN_STEP_STATUSES = [
+  "pending",
+  "inProgress",
+  "completed",
+  "canceled",
+] as const;
+
+export type PlanStepStatus = (typeof PLAN_STEP_STATUSES)[number];
 
 export interface PlanStep {
   content: string;

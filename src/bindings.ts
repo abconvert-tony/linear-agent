@@ -1,5 +1,6 @@
 import type { LinearClient } from "@linear/sdk";
 import type { OpenClawPluginToolContext } from "./types.js";
+import type { WorkflowStateType } from "./linear.js";
 
 export type TerminalKind = "response" | "error" | "elicitation";
 
@@ -16,6 +17,8 @@ export interface LinearBinding {
    * post-call fallback uses this to decide whether to post anything itself.
    */
   terminalPosted: boolean;
+  /** Lazily filled by linear_update_issue when stateType is resolved. */
+  stateIdByType: Map<WorkflowStateType, string>;
 }
 
 const bindings = new Map<string, LinearBinding>();

@@ -114,6 +114,12 @@ export function readConfig(pluginConfig?: Record<string, unknown>): PluginConfig
     delegateOnCreate: b("delegateOnCreate", true),
     historyLimit: n("historyLimit", 20),
     strictAddressing: b("strictAddressing", false),
-    mentionHandle: s("mentionHandle"),
+    mentionHandle: normalizeHandle(s("mentionHandle")),
   };
+}
+
+function normalizeHandle(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim().replace(/^@/, "").toLowerCase();
+  return trimmed.length > 0 ? trimmed : undefined;
 }

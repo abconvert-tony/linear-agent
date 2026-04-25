@@ -27,7 +27,7 @@ import {
 import {
   createClient,
   fetchSessionActivities,
-  fetchStartedStateId,
+  fetchStateIdByType,
   fetchViewer,
   postActivity,
   refreshTokens,
@@ -270,6 +270,26 @@ async function processEvent(
     readString(readObject(data.actor)?.id) ??
     "";
 
+  // Cheap skips first — no token load for events we'll drop.
+  if (!action && signal !== "stop") {
+    api.logger.info?.("linear-agent: event has no actionable action");
+    return;
+  }
+  if (cfg.strictAddressing && action === "prompted") {
+    if (!cfg.mentionHandle) {
+      api.logger.warn?.(
+        "linear-agent: strict-addressing skip — strictAddressing is on but mentionHandle is not configured",
+      );
+      return;
+    }
+    if (!isAddressed(prompt, cfg.mentionHandle)) {
+      api.logger.info?.(
+        `linear-agent: strict-addressing skip session=${sessionId.slice(0, 8)} (no @${cfg.mentionHandle} mention)`,
+      );
+      return;
+    }
+  }
+
   const tokenPath = resolveTokenPath(cfg.linearTokenStorePath);
   const tokens = await ensureFreshToken(
     api,
@@ -310,18 +330,6 @@ async function processEvent(
   }
 
   if (!action) {
-    api.logger.info?.("linear-agent: event has no actionable action");
-    return;
-  }
-
-  if (
-    cfg.strictAddressing &&
-    action === "prompted" &&
-    !isAddressed(prompt, cfg.mentionHandle)
-  ) {
-    api.logger.info?.(
-      `linear-agent: strict-addressing skip session=${sessionId.slice(0, 8)} (no @${cfg.mentionHandle ?? "<handle>"} mention)`,
-    );
     return;
   }
 
@@ -408,6 +416,7 @@ async function processEvent(
     linear,
     viewerId: tokens.viewerId,
     terminalPosted: false,
+    stateIdByType: new Map(),
   };
   if (sessionId) setBinding(sessionKey, binding);
 
@@ -465,10 +474,8 @@ function resolveAction(
   return "";
 }
 
-function isAddressed(prompt: string, handle: string | undefined): boolean {
-  if (!handle) return false;
-  const needle = `@${handle.replace(/^@/, "").toLowerCase()}`;
-  return prompt.toLowerCase().includes(needle);
+function isAddressed(prompt: string, normalizedHandle: string): boolean {
+  return prompt.toLowerCase().includes(`@${normalizedHandle}`);
 }
 
 function buildThoughtText(
@@ -526,7 +533,7 @@ async function applyIssuePolicies(
       stateType === "completed" ||
       stateType === "canceled";
     if (!terminal && teamId) {
-      const stateId = await fetchStartedStateId(linear, teamId);
+      const stateId = await fetchStateIdByType(linear, teamId, "started");
       if (stateId) patch.stateId = stateId;
     }
   }

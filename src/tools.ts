@@ -14,28 +14,13 @@ import {
   postActivity,
   updateAgentSession,
   updateIssue,
+  PLAN_STEP_STATUSES,
+  WORKFLOW_STATE_TYPES,
   type IssuePatch,
   type PlanStep,
   type PlanStepStatus,
   type WorkflowStateType,
 } from "./linear.js";
-
-const WORKFLOW_STATE_TYPES: readonly WorkflowStateType[] = [
-  "triage",
-  "backlog",
-  "unstarted",
-  "started",
-  "completed",
-  "canceled",
-  "duplicate",
-] as const;
-
-const PLAN_STEP_STATUSES: readonly PlanStepStatus[] = [
-  "pending",
-  "inProgress",
-  "completed",
-  "canceled",
-] as const;
 
 const BODY_PARAMETERS = {
   type: "object",
@@ -396,6 +381,42 @@ function readStringArray(
   return out.length > 0 ? out : undefined;
 }
 
+async function resolveStateId(
+  binding: LinearBinding,
+  params: Record<string, unknown>,
+): Promise<string | undefined> {
+  const explicit = readOptionalString(params, "stateId");
+  if (explicit) return explicit;
+
+  const raw = readOptionalString(params, "stateType");
+  if (!raw) return undefined;
+  if (!WORKFLOW_STATE_TYPES.includes(raw as WorkflowStateType)) {
+    throw new Error(
+      `stateType must be one of ${WORKFLOW_STATE_TYPES.join(", ")}.`,
+    );
+  }
+  const stateType = raw as WorkflowStateType;
+
+  const cached = binding.stateIdByType.get(stateType);
+  if (cached) return cached;
+
+  if (!binding.linearTeamId) {
+    throw new Error(
+      "stateType cannot be resolved: no team id is bound to this session.",
+    );
+  }
+  const resolved = await fetchStateIdByType(
+    binding.linear,
+    binding.linearTeamId,
+    stateType,
+  );
+  if (!resolved) {
+    throw new Error(`No '${stateType}' workflow state exists for this team.`);
+  }
+  binding.stateIdByType.set(stateType, resolved);
+  return resolved;
+}
+
 export function createUpdateIssueTool(
   api: OpenClawPluginApi,
 ): PluginToolFactory {
@@ -418,33 +439,8 @@ export function createUpdateIssueTool(
         }
 
         const patch: IssuePatch = {};
-        const stateId = readOptionalString(params, "stateId");
-        if (stateId) {
-          patch.stateId = stateId;
-        } else {
-          const stateType = readOptionalString(
-            params,
-            "stateType",
-          ) as WorkflowStateType | undefined;
-          if (stateType) {
-            if (!binding.linearTeamId) {
-              throw new Error(
-                "stateType cannot be resolved: no team id is bound to this session.",
-              );
-            }
-            const resolved = await fetchStateIdByType(
-              binding.linear,
-              binding.linearTeamId,
-              stateType,
-            );
-            if (!resolved) {
-              throw new Error(
-                `No '${stateType}' workflow state exists for this team.`,
-              );
-            }
-            patch.stateId = resolved;
-          }
-        }
+        const stateId = await resolveStateId(binding, params);
+        if (stateId) patch.stateId = stateId;
 
         const assigneeId = readOptionalString(params, "assigneeId");
         if (assigneeId) patch.assigneeId = assigneeId;
