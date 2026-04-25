@@ -252,10 +252,10 @@ async function postFallbackTerminal(
     parentId: target.threadParentId,
     body,
   }).then(
-    (ok) => {
-      if (ok) {
+    (result) => {
+      if (result.ok) {
         api.logger.info?.(
-          `linear-agent: mirrored ${context} parent=${target.threadParentId.slice(0, 8)}`,
+          `linear-agent: mirrored ${context} commentId=${result.commentId ? result.commentId.slice(0, 8) : "(none)"} parent=${target.threadParentId.slice(0, 8)}`,
         );
       } else {
         api.logger.warn?.(

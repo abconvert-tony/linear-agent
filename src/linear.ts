@@ -191,15 +191,23 @@ export async function postActivity(
 
 export type { CommentCreateInput };
 
+export interface CreateCommentResult {
+  ok: boolean;
+  commentId?: string;
+}
+
 export async function createComment(
   client: LinearClient,
   input: CommentCreateInput,
-): Promise<boolean> {
+): Promise<CreateCommentResult> {
   const body = typeof input.body === "string" ? input.body.trim() : "";
-  if (!body) return false;
-  if (!input.issueId && !input.parentId) return false;
+  if (!body) return { ok: false };
+  if (!input.issueId && !input.parentId) return { ok: false };
   const payload = await client.createComment(input);
-  return payload.success === true;
+  return {
+    ok: payload.success === true,
+    commentId: payload.commentId ?? undefined,
+  };
 }
 
 export type ExternalUrlInput = NonNullable<

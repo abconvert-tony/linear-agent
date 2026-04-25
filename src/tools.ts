@@ -367,18 +367,21 @@ export function createPostCommentTool(
           );
         }
         const parentId = threadUnder ? binding.threadParentId : undefined;
-        const ok = await createComment(binding.linear, {
+        const result = await createComment(binding.linear, {
           issueId: binding.linearIssueId,
           parentId,
           body,
         });
-        if (!ok) {
+        if (!result.ok) {
           throw new Error("Linear rejected the comment post for this issue.");
         }
+        const idTail = result.commentId
+          ? result.commentId.slice(0, 8)
+          : "(no id returned)";
         return textResult(
           parentId
-            ? "Comment posted as a reply under the source comment."
-            : "Top-level comment posted on the issue.",
+            ? `Comment posted (id=${idTail}) as a reply under parent ${parentId.slice(0, 8)}.`
+            : `Top-level comment posted (id=${idTail}) on the issue.`,
         );
       },
     };
