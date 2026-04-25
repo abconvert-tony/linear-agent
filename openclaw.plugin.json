@@ -1,0 +1,63 @@
+{
+  "id": "linear-agent",
+  "name": "Linear Agent",
+  "description": "Minimal Linear OAuth + AgentSessionEvent webhook bridge (routes under /tony/webhook/linear)",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "agentId": {
+        "type": "string",
+        "description": "OpenClaw agent to handle Linear events (default: 'dev')"
+      },
+      "linearClientId": {
+        "type": "string",
+        "description": "OAuth client ID from the Linear application"
+      },
+      "linearClientSecret": {
+        "type": "string",
+        "description": "OAuth client secret from the Linear application"
+      },
+      "linearRedirectUri": {
+        "type": "string",
+        "description": "Full public callback URL, e.g. https://<tunnel>/tony/webhook/linear/callback"
+      },
+      "linearWebhookSecret": {
+        "type": "string",
+        "description": "Webhook signing secret configured on the Linear app"
+      },
+      "linearScopes": {
+        "type": "string",
+        "description": "Comma-separated OAuth scopes (default: read,write,app:assignable,app:mentionable)"
+      },
+      "linearTokenStorePath": {
+        "type": "string",
+        "description": "Absolute path for persisted OAuth tokens (default: ~/.openclaw/workspace/.pi/linear-agent-tokens.json)"
+      },
+      "startOnCreate": {
+        "type": "boolean",
+        "description": "On session creation, move the issue to the team's first 'started' workflow state (default: true)"
+      },
+      "delegateOnCreate": {
+        "type": "boolean",
+        "description": "On session creation, self-delegate the issue to this app if no delegate is set (default: true)"
+      },
+      "historyLimit": {
+        "type": "number",
+        "description": "Max prior agent activities to fetch for prompted events (default: 20; 0 disables history fetch)"
+      }
+    }
+  },
+  "uiHints": {
+    "agentId": { "label": "Agent ID" },
+    "linearClientId": { "label": "OAuth client ID", "sensitive": true },
+    "linearClientSecret": { "label": "OAuth client secret", "sensitive": true },
+    "linearRedirectUri": { "label": "OAuth redirect URI" },
+    "linearWebhookSecret": { "label": "Webhook signing secret", "sensitive": true },
+    "linearScopes": { "label": "OAuth scopes" },
+    "linearTokenStorePath": { "label": "Token store path" },
+    "startOnCreate": { "label": "Auto-start issue on session create" },
+    "delegateOnCreate": { "label": "Self-delegate on session create" },
+    "historyLimit": { "label": "Max prior activities for prompted runs" }
+  }
+}

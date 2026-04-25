@@ -1,0 +1,30 @@
+{
+  "name": "linear-agent",
+  "version": "0.1.0",
+  "description": "Minimal Linear agent for OpenClaw: OAuth + webhook at /tony/webhook/linear",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.19.33",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@linear/sdk": "^82.1.0"
+  }
+}
