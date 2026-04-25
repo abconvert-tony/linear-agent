@@ -27,6 +27,7 @@ import {
 import {
   createClient,
   createComment,
+  fetchCommentThreadRoot,
   fetchSessionActivities,
   fetchStateIdByType,
   fetchViewer,
@@ -227,7 +228,7 @@ export function createWebhookHandler(api: OpenClawPluginApi) {
 interface FallbackTarget {
   sessionId: string;
   issueId: string;
-  sourceCommentId: string;
+  threadParentId: string;
 }
 
 async function postFallbackTerminal(
@@ -243,19 +244,19 @@ async function postFallbackTerminal(
   );
   // Skip the comment when this turn wasn't comment-triggered (assignment-only
   // sessions have no thread to reply into).
-  if (!target.issueId || !target.sourceCommentId) {
+  if (!target.issueId || !target.threadParentId) {
     await activity;
     return;
   }
   const mirror = createComment(linear, {
     issueId: target.issueId,
-    parentId: target.sourceCommentId,
+    parentId: target.threadParentId,
     body,
   }).then(
     (ok) => {
       if (ok) {
         api.logger.info?.(
-          `linear-agent: mirrored ${context} parent=${target.sourceCommentId.slice(0, 8)}`,
+          `linear-agent: mirrored ${context} parent=${target.threadParentId.slice(0, 8)}`,
         );
       } else {
         api.logger.warn?.(
@@ -374,8 +375,25 @@ async function processEvent(
     return;
   }
 
+  // Resolve to the thread root so parentId is always a top-level comment
+  // (Linear rejects nested threading). Optimistic fallback to the raw source
+  // id keeps the flow alive if the lookup itself fails — only loses if Linear
+  // then rejects, which we surface in the call-site error.
+  let threadParentId = sourceCommentId;
+  if (sourceCommentId) {
+    try {
+      const root = await fetchCommentThreadRoot(linear, sourceCommentId);
+      if (root) threadParentId = root;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      api.logger.warn?.(
+        `linear-agent: thread root lookup failed (${msg}); using source comment id as parent`,
+      );
+    }
+  }
+
   api.logger.info?.(
-    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} sourceCommentId=${sourceCommentId ? sourceCommentId.slice(0, 8) : "(none)"}`,
+    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} sourceCommentId=${sourceCommentId ? sourceCommentId.slice(0, 8) : "(none)"} threadParent=${threadParentId ? threadParentId.slice(0, 8) : "(none)"}`,
   );
 
   // Stop signal: acknowledge and halt; no agent run.
@@ -386,7 +404,7 @@ async function processEvent(
       await postFallbackTerminal(
         api,
         linear,
-        { sessionId, issueId, sourceCommentId },
+        { sessionId, issueId, threadParentId },
         "response",
         `Stop received — halting work on ${subject}.`,
         "stop ack",
@@ -456,7 +474,7 @@ async function processEvent(
       await postFallbackTerminal(
         api,
         linear,
-        { sessionId, issueId, sourceCommentId },
+        { sessionId, issueId, threadParentId },
         "error",
         `Agent run failed: ${msg}`,
         "gateway-load fail",
@@ -477,7 +495,7 @@ async function processEvent(
     prompt,
     promptContext,
     history,
-    hasSourceComment: Boolean(sourceCommentId),
+    hasSourceComment: Boolean(threadParentId),
   });
 
   const binding: LinearBinding = {
@@ -487,7 +505,7 @@ async function processEvent(
     linearTeamId: teamId,
     linear,
     viewerId: tokens.viewerId,
-    sourceCommentId: sourceCommentId || undefined,
+    threadParentId: threadParentId || undefined,
     terminalPosted: false,
     stateIdByType: new Map(),
   };
@@ -518,7 +536,7 @@ async function processEvent(
       await postFallbackTerminal(
         api,
         linear,
-        { sessionId, issueId, sourceCommentId },
+        { sessionId, issueId, threadParentId },
         type,
         body,
         "missing-terminal fallback",
@@ -531,7 +549,7 @@ async function processEvent(
       await postFallbackTerminal(
         api,
         linear,
-        { sessionId, issueId, sourceCommentId },
+        { sessionId, issueId, threadParentId },
         "error",
         `Agent run failed: ${msg}`,
         "dispatch fail",

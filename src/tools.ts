@@ -361,12 +361,12 @@ export function createPostCommentTool(
         }
         const body = readNonEmptyString(params, "body");
         const threadUnder = params.threadUnderSourceComment !== false;
-        if (threadUnder && !binding.sourceCommentId) {
+        if (threadUnder && !binding.threadParentId) {
           throw new Error(
             "linear_post_comment: this session has no source comment to thread under. Pass threadUnderSourceComment=false to post a top-level comment on the issue.",
           );
         }
-        const parentId = threadUnder ? binding.sourceCommentId : undefined;
+        const parentId = threadUnder ? binding.threadParentId : undefined;
         const ok = await createComment(binding.linear, {
           issueId: binding.linearIssueId,
           parentId,

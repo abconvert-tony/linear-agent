@@ -13,11 +13,12 @@ export interface LinearBinding {
   linear: LinearClient;
   viewerId?: string;
   /**
-   * Comment that triggered this turn. When set, `linear_post_comment` defaults
-   * to threading under it. Empty for sessions started by issue assignment
-   * with no associated comment.
+   * Top-level comment id to use as `parentId` when posting a threaded reply.
+   * Linear only supports one level of threading, so this is resolved from the
+   * triggering comment to its thread root at webhook time. Empty for sessions
+   * started by issue assignment with no associated comment.
    */
-  sourceCommentId?: string;
+  threadParentId?: string;
   /**
    * Set when the agent posts a response/error/elicitation. The webhook's
    * post-call fallback uses this to decide whether to post anything itself.
