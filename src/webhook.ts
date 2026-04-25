@@ -26,6 +26,7 @@ import {
 } from "./tokens.js";
 import {
   createClient,
+  createComment,
   fetchSessionActivities,
   fetchStateIdByType,
   fetchViewer,
@@ -223,6 +224,55 @@ export function createWebhookHandler(api: OpenClawPluginApi) {
   };
 }
 
+interface FallbackTarget {
+  sessionId: string;
+  issueId: string;
+  sourceCommentId: string;
+}
+
+async function postFallbackTerminal(
+  api: OpenClawPluginApi,
+  linear: LinearClient,
+  target: FallbackTarget,
+  type: "response" | "error",
+  body: string,
+  context: string,
+): Promise<void> {
+  const activity = postActivity(linear, target.sessionId, { type, body }).catch(
+    () => {},
+  );
+  // Skip the comment when this turn wasn't comment-triggered (assignment-only
+  // sessions have no thread to reply into).
+  if (!target.issueId || !target.sourceCommentId) {
+    await activity;
+    return;
+  }
+  const mirror = createComment(linear, {
+    issueId: target.issueId,
+    parentId: target.sourceCommentId,
+    body,
+  }).then(
+    (ok) => {
+      if (ok) {
+        api.logger.info?.(
+          `linear-agent: mirrored ${context} parent=${target.sourceCommentId.slice(0, 8)}`,
+        );
+      } else {
+        api.logger.warn?.(
+          `linear-agent: createComment success=false (${context})`,
+        );
+      }
+    },
+    (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      api.logger.warn?.(
+        `linear-agent: createComment threw (${context}): ${msg}`,
+      );
+    },
+  );
+  await Promise.all([activity, mirror]);
+}
+
 async function processEvent(
   api: OpenClawPluginApi,
   cfg: PluginConfig,
@@ -268,6 +318,15 @@ async function processEvent(
   const activityActorId =
     readString(readObject(agentActivity?.sourceComment)?.userId) ??
     readString(readObject(data.actor)?.id) ??
+    "";
+  // "prompted" events surface the user's new comment as agentActivity.sourceCommentId
+  // (flat, per AgentActivityWebhookPayload). "created" events instead attach the
+  // @-mention to the session itself, surfaced as agentSession.comment.
+  const sourceCommentId =
+    readString(agentActivity?.sourceCommentId) ??
+    readString(readObject(agentActivity?.sourceComment)?.id) ??
+    readString(readObject(sessionObj?.comment)?.id) ??
+    readString(readObject(data.comment)?.id) ??
     "";
 
   // Cheap skips first — no token load for events we'll drop.
@@ -315,15 +374,23 @@ async function processEvent(
     return;
   }
 
+  api.logger.info?.(
+    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} sourceCommentId=${sourceCommentId ? sourceCommentId.slice(0, 8) : "(none)"}`,
+  );
+
   // Stop signal: acknowledge and halt; no agent run.
   if (signal === "stop") {
     if (sessionId) {
-      const target =
+      const subject =
         identifier || title ? `${identifier} ${title}`.trim() : "this request";
-      await postActivity(linear, sessionId, {
-        type: "response",
-        body: `Stop received — halting work on ${target}.`,
-      }).catch(() => {});
+      await postFallbackTerminal(
+        api,
+        linear,
+        { sessionId, issueId, sourceCommentId },
+        "response",
+        `Stop received — halting work on ${subject}.`,
+        "stop ack",
+      );
       inflightSessions.delete(sessionId);
     }
     return;
@@ -386,10 +453,14 @@ async function processEvent(
     const msg = err instanceof Error ? err.message : String(err);
     api.logger.warn?.(`linear-agent: ${msg}`);
     if (sessionId) {
-      await postActivity(linear, sessionId, {
-        type: "error",
-        body: `Agent run failed: ${msg}`,
-      }).catch(() => {});
+      await postFallbackTerminal(
+        api,
+        linear,
+        { sessionId, issueId, sourceCommentId },
+        "error",
+        `Agent run failed: ${msg}`,
+        "gateway-load fail",
+      );
       inflightSessions.delete(sessionId);
     }
     return;
@@ -406,6 +477,7 @@ async function processEvent(
     prompt,
     promptContext,
     history,
+    hasSourceComment: Boolean(sourceCommentId),
   });
 
   const binding: LinearBinding = {
@@ -415,6 +487,7 @@ async function processEvent(
     linearTeamId: teamId,
     linear,
     viewerId: tokens.viewerId,
+    sourceCommentId: sourceCommentId || undefined,
     terminalPosted: false,
     stateIdByType: new Map(),
   };
@@ -435,24 +508,34 @@ async function processEvent(
     });
     if (!binding.terminalPosted && sessionId) {
       const text = extractReply(result);
-      const fallback = text
-        ? { type: "response" as const, body: text }
-        : { type: "error" as const, body: "Agent finished without posting a response. Please retry." };
+      const type: "response" | "error" = text ? "response" : "error";
+      const body = text ?? "Agent finished without posting a response. Please retry.";
       if (!text) {
         api.logger.warn?.(
           "linear-agent: agent did not call a terminal tool and no fallback text was extractable",
         );
       }
-      await postActivity(linear, sessionId, fallback).catch(() => {});
+      await postFallbackTerminal(
+        api,
+        linear,
+        { sessionId, issueId, sourceCommentId },
+        type,
+        body,
+        "missing-terminal fallback",
+      );
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     api.logger.warn?.(`linear-agent: agent dispatch failed: ${msg}`);
     if (sessionId && !binding.terminalPosted) {
-      await postActivity(linear, sessionId, {
-        type: "error",
-        body: `Agent run failed: ${msg}`,
-      }).catch(() => {});
+      await postFallbackTerminal(
+        api,
+        linear,
+        { sessionId, issueId, sourceCommentId },
+        "error",
+        `Agent run failed: ${msg}`,
+        "dispatch fail",
+      );
     }
   } finally {
     deleteBinding(sessionKey);
@@ -568,6 +651,7 @@ function buildMessage(input: {
   prompt: string;
   promptContext: string;
   history: PastActivitySummary[];
+  hasSourceComment: boolean;
 }): string {
   const lines: string[] = [];
   const target = `${input.identifier || "(no id)"} ${input.title || ""}`.trim();
@@ -594,8 +678,13 @@ function buildMessage(input: {
   }
 
   lines.push(
-    "\nRespond concisely. Your final message will be posted back to Linear as an agent activity.",
+    "\nRespond concisely. Your final message will be posted back to Linear as an agent activity (visible in the agent session panel).",
   );
+  if (input.hasSourceComment) {
+    lines.push(
+      "This turn was triggered by a Linear comment. To make your reply visible to the requester in the issue's comment thread (not just the agent panel), call `linear_post_comment` with the same body before finishing with `linear_post_response`. Skip the comment for trivial acknowledgements or panel-only iteration.",
+    );
+  }
   return lines.join("\n");
 }
 

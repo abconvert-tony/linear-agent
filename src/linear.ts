@@ -10,6 +10,7 @@ type AgentActivityCreateInput = Parameters<
 type AgentSessionUpdateInput = Parameters<
   LinearClient["updateAgentSession"]
 >[1];
+type CommentCreateInput = Parameters<LinearClient["createComment"]>[0];
 
 const LINEAR_TOKEN_URL = "https://api.linear.app/oauth/token";
 
@@ -185,6 +186,19 @@ export async function postActivity(
   };
   if (ephemeral) input.ephemeral = true;
   const payload = await client.createAgentActivity(input);
+  return payload.success === true;
+}
+
+export type { CommentCreateInput };
+
+export async function createComment(
+  client: LinearClient,
+  input: CommentCreateInput,
+): Promise<boolean> {
+  const body = typeof input.body === "string" ? input.body.trim() : "";
+  if (!body) return false;
+  if (!input.issueId && !input.parentId) return false;
+  const payload = await client.createComment(input);
   return payload.success === true;
 }
 

@@ -7,6 +7,7 @@ import { createWebhookHandler } from "./src/webhook.js";
 import {
   createAttachExternalUrlTool,
   createPostActionTool,
+  createPostCommentTool,
   createPostThoughtTool,
   createSetSessionPlanTool,
   createUpdateIssueTool,
@@ -41,6 +42,9 @@ export default function register(api: OpenClawPluginApi): void {
   api.registerTool(createPostActionTool(api), {
     name: "linear_post_action",
   });
+  api.registerTool(createPostCommentTool(api), {
+    name: "linear_post_comment",
+  });
   api.registerTool(createUpdateIssueTool(api), {
     name: "linear_update_issue",
   });
@@ -52,6 +56,6 @@ export default function register(api: OpenClawPluginApi): void {
   });
 
   api.logger.info?.(
-    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_update_issue, linear_set_session_plan, linear_attach_external_url`,
+    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{thought,action,comment,response,error,elicitation}, linear_update_issue, linear_set_session_plan, linear_attach_external_url`,
   );
 }

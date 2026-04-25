@@ -10,6 +10,7 @@ import {
   type TerminalKind,
 } from "./bindings.js";
 import {
+  createComment,
   fetchStateIdByType,
   postActivity,
   updateAgentSession,
@@ -50,6 +51,26 @@ const POST_THOUGHT_PARAMETERS = {
       type: "boolean",
       description:
         "If true, the thought is removed once another activity is posted. Use for fleeting status (e.g. 'fetching repo state…') that the next activity replaces.",
+    },
+  },
+} as const;
+
+const POST_COMMENT_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  required: ["body"],
+  properties: {
+    body: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Markdown body to post as a comment on the issue. Visible to everyone watching the issue, unlike agent activities which only render in the agent session panel.",
+    },
+    threadUnderSourceComment: {
+      type: "boolean",
+      default: true,
+      description:
+        "Thread the new comment under the comment that triggered this turn. Set false to post a top-level comment on the issue instead.",
     },
   },
 } as const;
@@ -314,6 +335,50 @@ export function createPostThoughtTool(
         }
         return textResult(
           ephemeral ? "Ephemeral thought posted." : "Thought posted.",
+        );
+      },
+    };
+  };
+}
+
+export function createPostCommentTool(
+  api: OpenClawPluginApi,
+): PluginToolFactory {
+  return (ctx): PluginAgentTool | null => {
+    const binding = getBinding(ctx);
+    if (!binding) return null;
+    return {
+      name: "linear_post_comment",
+      label: "Linear: post comment",
+      description:
+        "Post a real Linear comment on the bound issue. Use this when the requester needs to see the reply in the issue's comment thread (where they posted the @-mention) — agent activities only render in the agent session panel. By default the comment threads under the comment that triggered this turn; set threadUnderSourceComment=false for a top-level issue comment. Does not end the turn — still finish with linear_post_response/error/elicitation.",
+      parameters: POST_COMMENT_PARAMETERS,
+      execute: async (_toolCallId, params) => {
+        if (!binding.linearIssueId) {
+          throw new Error(
+            "linear_post_comment: no issue bound to this session.",
+          );
+        }
+        const body = readNonEmptyString(params, "body");
+        const threadUnder = params.threadUnderSourceComment !== false;
+        if (threadUnder && !binding.sourceCommentId) {
+          throw new Error(
+            "linear_post_comment: this session has no source comment to thread under. Pass threadUnderSourceComment=false to post a top-level comment on the issue.",
+          );
+        }
+        const parentId = threadUnder ? binding.sourceCommentId : undefined;
+        const ok = await createComment(binding.linear, {
+          issueId: binding.linearIssueId,
+          parentId,
+          body,
+        });
+        if (!ok) {
+          throw new Error("Linear rejected the comment post for this issue.");
+        }
+        return textResult(
+          parentId
+            ? "Comment posted as a reply under the source comment."
+            : "Top-level comment posted on the issue.",
         );
       },
     };

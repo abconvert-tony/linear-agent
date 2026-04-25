@@ -34,6 +34,7 @@ active `sessionKey`).
 |------|---------|-----|
 | `linear_post_thought`      | `AgentActivityCreateInput { type: "thought" }`      | Non-terminal: mid-run narration. Set `ephemeral: true` for fleeting status that the next activity replaces |
 | `linear_post_action`       | `AgentActivityActionContent { action, parameter, result? }` | Non-terminal: structured "action" card. Post once without `result` to announce work-in-progress, then again with the same `action`+`parameter` and a filled-in `result` when done |
+| `linear_post_comment`      | `CommentCreateInput { body, issueId, parentId? }`   | Non-terminal: post a real Linear comment (visible in the issue thread, not just the agent panel). Defaults to threading under the comment that triggered this turn; pass `threadUnderSourceComment: false` for a top-level issue comment |
 | `linear_post_response`     | `AgentActivityCreateInput { type: "response" }`     | Terminal: the agent's final reply for this turn |
 | `linear_post_error`        | `AgentActivityCreateInput { type: "error" }`        | Terminal: surface a failure to the requester |
 | `linear_post_elicitation`  | `AgentActivityCreateInput { type: "elicitation" }`  | Terminal: pause and ask the user for more info |
