@@ -67,3 +67,17 @@ export function readObject(v: unknown): Record<string, unknown> | undefined {
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   return v as Record<string, unknown>;
 }
+
+export function shortId(id: string | undefined, empty = "(none)"): string {
+  return id ? id.slice(0, 8) : empty;
+}
+
+// Webhook payloads carry related entities as either a flat `<thing>Id: string`
+// or a nested `<thing>: { id, ... }` object. This pulls whichever is present.
+export function readRefId(
+  source: Record<string, unknown> | undefined,
+  idKey: string,
+  objectKey: string,
+): string | undefined {
+  return readString(source?.[idKey]) ?? readString(readObject(source?.[objectKey])?.id);
+}

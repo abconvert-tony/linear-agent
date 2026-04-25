@@ -192,7 +192,7 @@ export async function postActivity(
 export type { CommentCreateInput };
 
 export interface CreateCommentResult {
-  ok: boolean;
+  success: boolean;
   commentId?: string;
 }
 
@@ -201,11 +201,11 @@ export async function createComment(
   input: CommentCreateInput,
 ): Promise<CreateCommentResult> {
   const body = typeof input.body === "string" ? input.body.trim() : "";
-  if (!body) return { ok: false };
-  if (!input.issueId && !input.parentId) return { ok: false };
+  if (!body) return { success: false };
+  if (!input.issueId && !input.parentId) return { success: false };
   const payload = await client.createComment(input);
   return {
-    ok: payload.success === true,
+    success: payload.success === true,
     commentId: payload.commentId ?? undefined,
   };
 }

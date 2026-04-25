@@ -22,6 +22,7 @@ import {
   type PlanStepStatus,
   type WorkflowStateType,
 } from "./linear.js";
+import { shortId } from "./util.js";
 
 const BODY_PARAMETERS = {
   type: "object",
@@ -372,15 +373,13 @@ export function createPostCommentTool(
           parentId,
           body,
         });
-        if (!result.ok) {
+        if (!result.success) {
           throw new Error("Linear rejected the comment post for this issue.");
         }
-        const idTail = result.commentId
-          ? result.commentId.slice(0, 8)
-          : "(no id returned)";
+        const idTail = shortId(result.commentId, "(no id returned)");
         return textResult(
           parentId
-            ? `Comment posted (id=${idTail}) as a reply under parent ${parentId.slice(0, 8)}.`
+            ? `Comment posted (id=${idTail}) as a reply under parent ${shortId(parentId)}.`
             : `Top-level comment posted (id=${idTail}) on the issue.`,
         );
       },

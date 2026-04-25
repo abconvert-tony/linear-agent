@@ -14,8 +14,10 @@ import {
   readBody,
   readHeader,
   readObject,
+  readRefId,
   readString,
   sendJson,
+  shortId,
 } from "./util.js";
 import {
   clearTokens,
@@ -254,9 +256,9 @@ async function postFallbackTerminal(
     body,
   }).then(
     (result) => {
-      if (result.ok) {
+      if (result.success) {
         api.logger.info?.(
-          `linear-agent: mirrored ${context} commentId=${result.commentId ? result.commentId.slice(0, 8) : "(none)"} parent=${target.threadParentId.slice(0, 8)}`,
+          `linear-agent: mirrored ${context} commentId=${shortId(result.commentId)} parent=${shortId(target.threadParentId)}`,
         );
       } else {
         api.logger.warn?.(
@@ -332,20 +334,19 @@ async function processEvent(
   //     this points at the user's real @-mention.
   // The user's mention is the right anchor for visibility; we walk it to its
   // own thread root (Linear allows only one level of threading).
-  const sessionAnchorCommentId =
-    readString(sessionObj?.commentId) ??
-    readString(readObject(sessionObj?.comment)?.id) ??
-    "";
-  const sessionSourceCommentId =
-    readString(sessionObj?.sourceCommentId) ??
-    readString(readObject(sessionObj?.sourceComment)?.id) ??
-    "";
-  const turnSourceCommentId =
-    readString(agentActivity?.sourceCommentId) ??
-    readString(readObject(agentActivity?.sourceComment)?.id) ??
-    "";
+  const sessionAnchorCommentId = readRefId(sessionObj, "commentId", "comment");
+  const sessionSourceCommentId = readRefId(
+    sessionObj,
+    "sourceCommentId",
+    "sourceComment",
+  );
+  const turnSourceCommentId = readRefId(
+    agentActivity,
+    "sourceCommentId",
+    "sourceComment",
+  );
   const mentionCommentId =
-    sessionSourceCommentId || turnSourceCommentId || sessionAnchorCommentId;
+    sessionSourceCommentId ?? turnSourceCommentId ?? sessionAnchorCommentId;
 
   // Cheap skips first — no token load for events we'll drop.
   if (!action && signal !== "stop") {
@@ -392,13 +393,12 @@ async function processEvent(
     return;
   }
 
-  // Walk the user's mention comment to its thread root so parentId is always
-  // a top-level comment in the user's actual thread (not the session's hidden
-  // placeholder root). Optimistic fallback to the mention id keeps the flow
-  // alive if the lookup fails — Linear will surface any rejection at the
-  // call site.
-  let threadParentId = mentionCommentId;
-  if (mentionCommentId) {
+  // When mention === sessionAnchor, the @-mention is a top-level comment and
+  // is already its own thread root — no API call needed. Only the placeholder-
+  // split case (mention is a reply living under sessionAnchor or another root)
+  // needs a lookup to find the real thread root.
+  let threadParentId = mentionCommentId ?? "";
+  if (mentionCommentId && mentionCommentId !== sessionAnchorCommentId) {
     try {
       const root = await fetchCommentThreadRoot(linear, mentionCommentId);
       if (root) threadParentId = root;
@@ -411,7 +411,7 @@ async function processEvent(
   }
 
   api.logger.info?.(
-    `linear-agent: parsed action=${action || "(none)"} session=${sessionId.slice(0, 8)} sessionAnchor=${sessionAnchorCommentId ? sessionAnchorCommentId.slice(0, 8) : "(none)"} mention=${mentionCommentId ? mentionCommentId.slice(0, 8) : "(none)"} threadParent=${threadParentId ? threadParentId.slice(0, 8) : "(none)"}`,
+    `linear-agent: parsed action=${action || "(none)"} session=${shortId(sessionId)} sessionAnchor=${shortId(sessionAnchorCommentId)} mention=${shortId(mentionCommentId)} threadParent=${shortId(threadParentId)}`,
   );
 
   // Stop signal: acknowledge and halt; no agent run.
