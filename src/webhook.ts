@@ -570,15 +570,29 @@ function buildMessage(input: {
   history: PastActivitySummary[];
 }): string {
   const lines: string[] = [];
-  lines.push(
-    `Linear agent session (${input.action}) — ${input.identifier || "(no id)"} ${input.title || ""}`.trim(),
-  );
+  const target = `${input.identifier || "(no id)"} ${input.title || ""}`.trim();
+  lines.push(`Linear agent session (${input.action}) — ${target}`);
   if (input.url) lines.push(`URL: ${input.url}`);
-  if (input.description) lines.push(`\nIssue description:\n${input.description}`);
-  if (input.promptContext) lines.push(`\nPrompt context:\n${input.promptContext}`);
-  const hist = formatHistory(input.history);
-  if (hist) lines.push(`\nPrior session activity:\n${hist}`);
-  if (input.prompt) lines.push(`\nPrompt:\n${input.prompt}`);
+
+  if (input.action === "created") {
+    // Linear pre-renders a complete <issue>/<primary-directive-thread>/<guidance>
+    // XML in promptContext. Use it verbatim and skip duplicate fields.
+    if (input.promptContext) {
+      lines.push(`\n${input.promptContext}`);
+    } else {
+      if (input.description)
+        lines.push(`\nIssue description:\n${input.description}`);
+      if (input.prompt) lines.push(`\nPrompt:\n${input.prompt}`);
+    }
+  } else {
+    // "prompted": Linear sends only the new user turn — original issue context
+    // arrived during "created" and is captured in session history. Don't
+    // re-include description or promptContext (the latter isn't sent here).
+    const hist = formatHistory(input.history);
+    if (hist) lines.push(`\nPrior session activity:\n${hist}`);
+    if (input.prompt) lines.push(`\nNew message:\n${input.prompt}`);
+  }
+
   lines.push(
     "\nRespond concisely. Your final message will be posted back to Linear as an agent activity.",
   );
