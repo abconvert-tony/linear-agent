@@ -1,7 +1,7 @@
 {
   "name": "linear-agent",
   "version": "0.1.0",
-  "description": "Minimal Linear agent for OpenClaw: OAuth + webhook at /tony/webhook/linear",
+  "description": "Linear OAuth + AgentSessionEvent webhook bridge for OpenClaw, with registered agent tools that drive the Linear session lifecycle.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

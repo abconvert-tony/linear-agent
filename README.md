@@ -41,6 +41,14 @@ active `sessionKey`).
 | `linear_set_session_plan`  | `AgentSessionUpdateInput.plan`                      | Replace the agent's plan checklist for this session; each step has `content` and `status: pending\|inProgress\|completed\|canceled` |
 | `linear_attach_external_url` | `AgentSessionUpdateInput.addedExternalUrls`       | Attach a PR/preview/dashboard URL; Linear renders it as a session button and tracks downstream updates |
 
+## Prerequisites
+
+- A running OpenClaw gateway (see the [OpenClaw docs](https://docs.openclaw.ai))
+  with an agent in `agents.list[]` ready to handle Linear events.
+- A public ingress for that gateway (Tailscale Funnel, Cloudflare Tunnel, ngrok,
+  reverse proxy, etc.) — Linear webhooks and the OAuth callback both need a
+  reachable URL.
+
 ## Setup
 
 ### 1. Register a Linear OAuth application
@@ -50,9 +58,20 @@ Linear → *Settings* → *API* → *OAuth applications* → *New application*.
 - **Redirect URI:** `<public-base>/linear-agent/callback`
 - **Webhook URL:** `<public-base>/linear-agent`
 - Enable webhooks; subscribe to **Agent session events**
+- **Allowed scopes:** must be a superset of whatever you set in
+  `linearScopes` later. The default `linearScopes` is
+  `read,write,app:assignable,app:mentionable`; if the Linear app isn't
+  configured with `app:assignable` and `app:mentionable`, OAuth silently
+  grants fewer scopes and `delegateOnCreate` later fails.
 - Copy the client id, client secret, and webhook signing secret
 
 Admin permissions on the workspace are required to install with `actor=app`.
+
+If your ingress strips a path prefix (e.g. shared host with `/<user>/*`), the
+**Redirect URI** registered above, the `linearRedirectUri` config in step 2,
+and the **Webhook URL** must all include that prefix
+(`<public-base>/<your-prefix>/linear-agent/...`). The plugin itself only sees
+`/linear-agent/...` after the prefix is stripped.
 
 ### 2. Configure the plugin
 
@@ -80,6 +99,10 @@ Edit `~/.openclaw/openclaw.json` and set `plugins.entries.linear-agent.config`:
 
 `${ENV_VAR}` interpolation is supported — keep secrets in `~/.openclaw/.env`
 rather than the JSON.
+
+The `agentId` here must match the `id` of an entry in `agents.list[]` — that's
+the OpenClaw agent the plugin will dispatch Linear events to. Step 2b uses the
+same id.
 
 Optional config keys: `linearScopes` (default `read,write,app:assignable,app:mentionable`),
 `linearTokenStorePath` (default `~/.openclaw/workspace/.pi/linear-agent-tokens.json`),
@@ -145,6 +168,17 @@ Mention or delegate to the agent in a Linear issue. Expected sequence:
 5. If the agent ends without calling a terminal tool, the plugin falls back
    to extracting reply text and posting it as a `response`, or posts a generic
    error if nothing is extractable.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---------|--------------|
+| Webhook returns `401` | Wrong or missing `linearWebhookSecret`; the value must match the signing secret on the Linear app. |
+| Webhook never fires | The Linear app isn't subscribed to **Agent session events**, or the public webhook URL doesn't reach the gateway. |
+| Agent runs but `linear_*` tools aren't callable | The bound agent's tool policy is filtering them out. See step 2b — `group:plugins` must be in the agent's allowlist, and any narrow global `tools.allow` will AND-filter plugin tools out before the agent step. |
+| `delegateOnCreate` / scope-related errors | The Linear app's allowed scopes don't include what you requested via `linearScopes`. Add `app:assignable` and `app:mentionable` to the app and re-install. |
+| OAuth refresh fails / tokens disappear | A `PermissionChange` or `OAuthApp` revoke/uninstall event arrived; the plugin clears the token store on those. Re-run `<public-base>/linear-agent/connect`. |
+| Replies arrive as plain text instead of structured activities | The agent didn't call a terminal `linear_post_*` tool, so the plugin fell back to extracting reply text. Usually means the tools weren't visible — see the policy row above. |
 
 ## Sharing this plugin with teammates
 
