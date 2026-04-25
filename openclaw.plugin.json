@@ -1,7 +1,7 @@
 {
   "id": "linear-agent",
   "name": "Linear Agent",
-  "description": "Minimal Linear OAuth + AgentSessionEvent webhook bridge (routes under /tony/webhook/linear)",
+  "description": "Linear OAuth + AgentSessionEvent webhook bridge with registered agent tools (routes under /linear-agent)",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -20,7 +20,7 @@
       },
       "linearRedirectUri": {
         "type": "string",
-        "description": "Full public callback URL, e.g. https://<tunnel>/tony/webhook/linear/callback"
+        "description": "Full public callback URL, e.g. https://<public-base>/linear-agent/callback"
       },
       "linearWebhookSecret": {
         "type": "string",
@@ -45,6 +45,14 @@
       "historyLimit": {
         "type": "number",
         "description": "Max prior agent activities to fetch for prompted events (default: 20; 0 disables history fetch)"
+      },
+      "strictAddressing": {
+        "type": "boolean",
+        "description": "If true, only process prompted events whose body explicitly @-mentions the configured handle (default: false)"
+      },
+      "mentionHandle": {
+        "type": "string",
+        "description": "Mention handle used by strictAddressing, e.g. 'personal-openclaw' (the bare handle without the leading '@')"
       }
     }
   },
@@ -58,6 +66,8 @@
     "linearTokenStorePath": { "label": "Token store path" },
     "startOnCreate": { "label": "Auto-start issue on session create" },
     "delegateOnCreate": { "label": "Self-delegate on session create" },
-    "historyLimit": { "label": "Max prior activities for prompted runs" }
+    "historyLimit": { "label": "Max prior activities for prompted runs" },
+    "strictAddressing": { "label": "Strict addressing mode" },
+    "mentionHandle": { "label": "Mention handle", "placeholder": "personal-openclaw" }
   }
 }

@@ -8,6 +8,8 @@ import {
   createAttachExternalUrlTool,
   createPostActionTool,
   createPostThoughtTool,
+  createSetSessionPlanTool,
+  createUpdateIssueTool,
   terminalToolFactories,
 } from "./src/tools.js";
 
@@ -41,12 +43,20 @@ export default function register(api: OpenClawPluginApi): void {
     name: "linear_post_action",
     optional: true,
   });
+  api.registerTool(createUpdateIssueTool(api), {
+    name: "linear_update_issue",
+    optional: true,
+  });
+  api.registerTool(createSetSessionPlanTool(api), {
+    name: "linear_set_session_plan",
+    optional: true,
+  });
   api.registerTool(createAttachExternalUrlTool(api), {
     name: "linear_attach_external_url",
     optional: true,
   });
 
   api.logger.info?.(
-    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_attach_external_url`,
+    `linear-agent: routes registered under ${BASE_PATH} (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_update_issue, linear_set_session_plan, linear_attach_external_url`,
   );
 }

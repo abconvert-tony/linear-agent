@@ -37,7 +37,9 @@ active `sessionKey`).
 | `linear_post_response`     | `AgentActivityCreateInput { type: "response" }`     | Terminal: the agent's final reply for this turn |
 | `linear_post_error`        | `AgentActivityCreateInput { type: "error" }`        | Terminal: surface a failure to the requester |
 | `linear_post_elicitation`  | `AgentActivityCreateInput { type: "elicitation" }`  | Terminal: pause and ask the user for more info |
-| `linear_attach_external_url` | `AgentSessionUpdateInput.addedExternalUrls` | Attach a PR/preview/dashboard URL; Linear renders it as a session button and tracks downstream updates |
+| `linear_update_issue`      | `IssueUpdateInput` (subset)                         | Update state, assignee/delegate, priority, labels, title/description, due date. `stateType` resolves to a stateId via the team's workflow states; `issueId` defaults to the bound issue |
+| `linear_set_session_plan`  | `AgentSessionUpdateInput.plan`                      | Replace the agent's plan checklist for this session; each step has `content` and `status: pending\|inProgress\|completed\|canceled` |
+| `linear_attach_external_url` | `AgentSessionUpdateInput.addedExternalUrls`       | Attach a PR/preview/dashboard URL; Linear renders it as a session button and tracks downstream updates |
 
 ## Setup
 
@@ -81,14 +83,16 @@ rather than the JSON.
 
 Optional config keys: `linearScopes` (default `read,write,app:assignable,app:mentionable`),
 `linearTokenStorePath` (default `~/.openclaw/workspace/.pi/linear-agent-tokens.json`),
-`historyLimit` (default 20), `startOnCreate`, `delegateOnCreate`.
+`historyLimit` (default 20), `startOnCreate`, `delegateOnCreate`,
+`strictAddressing` + `mentionHandle` (only run prompted events that explicitly
+@-mention the agent; useful when humans and the agent share an issue thread).
 
 ### 3. Restart the gateway
 
 Look for the load line:
 
 ```
-linear-agent: routes registered under /linear-agent (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_attach_external_url
+linear-agent: routes registered under /linear-agent (connect, callback, webhook); tools: linear_post_{thought,action,response,error,elicitation}, linear_update_issue, linear_set_session_plan, linear_attach_external_url
 ```
 
 ### 4. Install the agent into your Linear workspace

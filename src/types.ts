@@ -84,6 +84,8 @@ export interface PluginConfig {
   startOnCreate: boolean;
   delegateOnCreate: boolean;
   historyLimit: number;
+  strictAddressing: boolean;
+  mentionHandle?: string;
 }
 
 export function readConfig(pluginConfig?: Record<string, unknown>): PluginConfig {
@@ -111,5 +113,7 @@ export function readConfig(pluginConfig?: Record<string, unknown>): PluginConfig
     startOnCreate: b("startOnCreate", true),
     delegateOnCreate: b("delegateOnCreate", true),
     historyLimit: n("historyLimit", 20),
+    strictAddressing: b("strictAddressing", false),
+    mentionHandle: s("mentionHandle"),
   };
 }

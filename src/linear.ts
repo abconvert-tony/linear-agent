@@ -86,15 +86,25 @@ export async function fetchViewer(
   };
 }
 
-export async function fetchStartedStateId(
+export type WorkflowStateType =
+  | "triage"
+  | "backlog"
+  | "unstarted"
+  | "started"
+  | "completed"
+  | "canceled"
+  | "duplicate";
+
+export async function fetchStateIdByType(
   client: LinearClient,
   teamId: string,
+  type: WorkflowStateType,
 ): Promise<string | undefined> {
   if (!teamId) return undefined;
   const states = await client.workflowStates({
     filter: {
       team: { id: { eq: teamId } },
-      type: { eq: "started" },
+      type: { eq: type },
     },
   });
   const nodes = states.nodes ?? [];
@@ -105,9 +115,39 @@ export async function fetchStartedStateId(
   return sorted[0]?.id;
 }
 
+/** @deprecated kept for the existing applyIssuePolicies call site. */
+export async function fetchStartedStateId(
+  client: LinearClient,
+  teamId: string,
+): Promise<string | undefined> {
+  return fetchStateIdByType(client, teamId, "started");
+}
+
 export interface IssuePatch {
   stateId?: string;
+  assigneeId?: string;
   delegateId?: string;
+  priority?: number;
+  addedLabelIds?: string[];
+  removedLabelIds?: string[];
+  title?: string;
+  description?: string;
+  /** TimelessDate (YYYY-MM-DD). Pass `null` to clear, omit to leave unchanged. */
+  dueDate?: string | null;
+}
+
+function isPatchEmpty(input: IssuePatch): boolean {
+  return (
+    !input.stateId &&
+    !input.assigneeId &&
+    !input.delegateId &&
+    input.priority === undefined &&
+    !input.addedLabelIds?.length &&
+    !input.removedLabelIds?.length &&
+    !input.title &&
+    !input.description &&
+    input.dueDate === undefined
+  );
 }
 
 export async function updateIssue(
@@ -115,8 +155,11 @@ export async function updateIssue(
   issueId: string,
   input: IssuePatch,
 ): Promise<boolean> {
-  if (!issueId || (!input.stateId && !input.delegateId)) return false;
-  const payload = await client.updateIssue(issueId, input);
+  if (!issueId || isPatchEmpty(input)) return false;
+  const payload = await client.updateIssue(
+    issueId,
+    input as Parameters<LinearClient["updateIssue"]>[1],
+  );
   return payload.success === true;
 }
 
@@ -149,9 +192,22 @@ export interface ExternalUrlInput {
   url: string;
 }
 
+export type PlanStepStatus =
+  | "pending"
+  | "inProgress"
+  | "completed"
+  | "canceled";
+
+export interface PlanStep {
+  content: string;
+  status: PlanStepStatus;
+}
+
 export interface AgentSessionPatch {
   addedExternalUrls?: ExternalUrlInput[];
   removedExternalUrls?: string[];
+  /** Replaces the session's plan in full; Linear renders it as a checklist. */
+  plan?: PlanStep[];
 }
 
 export async function updateAgentSession(
@@ -161,7 +217,9 @@ export async function updateAgentSession(
 ): Promise<boolean> {
   if (
     !sessionId ||
-    (!input.addedExternalUrls?.length && !input.removedExternalUrls?.length)
+    (!input.addedExternalUrls?.length &&
+      !input.removedExternalUrls?.length &&
+      input.plan === undefined)
   ) {
     return false;
   }

@@ -7,6 +7,8 @@ export interface LinearBinding {
   linearSessionId: string;
   linearIssueId: string;
   linearIssueIdentifier: string;
+  /** Linear team owning this issue. Used to resolve workflow state names. */
+  linearTeamId: string;
   linear: LinearClient;
   viewerId?: string;
   /**

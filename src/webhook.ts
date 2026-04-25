@@ -251,6 +251,7 @@ async function processEvent(
   const title = readString(issue?.title) ?? "";
   const url = readString(issue?.url) ?? "";
   const description = readString(issue?.description) ?? "";
+  const teamId = readString(readObject(issue?.team)?.id) ?? "";
   const action = resolveAction(data, payload);
 
   const agentActivity = readObject(data.agentActivity);
@@ -313,6 +314,17 @@ async function processEvent(
     return;
   }
 
+  if (
+    cfg.strictAddressing &&
+    action === "prompted" &&
+    !isAddressed(prompt, cfg.mentionHandle)
+  ) {
+    api.logger.info?.(
+      `linear-agent: strict-addressing skip session=${sessionId.slice(0, 8)} (no @${cfg.mentionHandle ?? "<handle>"} mention)`,
+    );
+    return;
+  }
+
   gcInflight();
   if (sessionId && inflightSessions.has(sessionId)) {
     const elapsed = Date.now() - (inflightSessions.get(sessionId) ?? 0);
@@ -342,6 +354,7 @@ async function processEvent(
     applyIssuePolicies(api, cfg, linear, tokens, {
       issueId,
       issue,
+      teamId,
     }).catch((err) => {
       api.logger.warn?.(
         `linear-agent: issue policy failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -391,6 +404,7 @@ async function processEvent(
     linearSessionId: sessionId,
     linearIssueId: issueId,
     linearIssueIdentifier: identifier,
+    linearTeamId: teamId,
     linear,
     viewerId: tokens.viewerId,
     terminalPosted: false,
@@ -451,6 +465,12 @@ function resolveAction(
   return "";
 }
 
+function isAddressed(prompt: string, handle: string | undefined): boolean {
+  if (!handle) return false;
+  const needle = `@${handle.replace(/^@/, "").toLowerCase()}`;
+  return prompt.toLowerCase().includes(needle);
+}
+
 function buildThoughtText(
   action: "created" | "prompted",
   identifier: string,
@@ -487,9 +507,13 @@ async function applyIssuePolicies(
   cfg: PluginConfig,
   linear: LinearClient,
   tokens: LinearTokens,
-  input: { issueId: string; issue: Record<string, unknown> | undefined },
+  input: {
+    issueId: string;
+    issue: Record<string, unknown> | undefined;
+    teamId: string;
+  },
 ): Promise<void> {
-  const { issueId, issue } = input;
+  const { issueId, issue, teamId } = input;
   if (!issueId) return;
 
   const patch: { stateId?: string; delegateId?: string } = {};
@@ -501,7 +525,6 @@ async function applyIssuePolicies(
       stateType === "started" ||
       stateType === "completed" ||
       stateType === "canceled";
-    const teamId = readString(readObject(issue?.team)?.id) ?? "";
     if (!terminal && teamId) {
       const stateId = await fetchStartedStateId(linear, teamId);
       if (stateId) patch.stateId = stateId;
