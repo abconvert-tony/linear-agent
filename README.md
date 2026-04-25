@@ -87,6 +87,35 @@ Optional config keys: `linearScopes` (default `read,write,app:assignable,app:men
 `strictAddressing` + `mentionHandle` (only run prompted events that explicitly
 @-mention the agent; useful when humans and the agent share an issue thread).
 
+### 2b. Allow the plugin's tools on the bound agent
+
+Plugin-registered tools are gated by the gateway's tool policy. The configured
+agent (`agentId`) must have `group:plugins` in its allowlist, otherwise the
+`linear_*` tools are filtered out before the model sees them and the run will
+fall back to the plain-text reply path.
+
+The simplest setup — a single `alsoAllow` on the agent and no global
+`tools.allow` filter:
+
+```json
+{
+  "tools": { "profile": "full" },
+  "agents": {
+    "list": [
+      {
+        "id": "dev",
+        "tools": { "alsoAllow": ["exec", "group:plugins"] }
+      }
+    ]
+  }
+}
+```
+
+Gotcha: a global `tools.allow: ["exec"]` (or any other narrow list) acts as an
+AND filter applied *before* the agent step, so it strips plugin tools even if
+the agent's `alsoAllow` includes `group:plugins`. Either drop the global
+`tools.allow` (as above) or extend it to `["exec", "group:plugins"]`.
+
 ### 3. Restart the gateway
 
 Look for the load line:

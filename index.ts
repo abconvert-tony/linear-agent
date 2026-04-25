@@ -33,27 +33,22 @@ export default function register(api: OpenClawPluginApi): void {
   });
 
   for (const { name, factory } of terminalToolFactories) {
-    api.registerTool(factory, { name, optional: true });
+    api.registerTool(factory, { name });
   }
   api.registerTool(createPostThoughtTool(api), {
     name: "linear_post_thought",
-    optional: true,
   });
   api.registerTool(createPostActionTool(api), {
     name: "linear_post_action",
-    optional: true,
   });
   api.registerTool(createUpdateIssueTool(api), {
     name: "linear_update_issue",
-    optional: true,
   });
   api.registerTool(createSetSessionPlanTool(api), {
     name: "linear_set_session_plan",
-    optional: true,
   });
   api.registerTool(createAttachExternalUrlTool(api), {
     name: "linear_attach_external_url",
-    optional: true,
   });
 
   api.logger.info?.(
