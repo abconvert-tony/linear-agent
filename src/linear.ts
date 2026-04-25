@@ -1,5 +1,16 @@
 import { LinearClient } from "@linear/sdk";
 
+// The SDK declares these GraphQL input types but doesn't re-export them by
+// name, so we derive them from the runtime method signatures instead. This
+// way drift in the SDK's input shape surfaces here at compile time.
+type IssueUpdateInput = Parameters<LinearClient["updateIssue"]>[1];
+type AgentActivityCreateInput = Parameters<
+  LinearClient["createAgentActivity"]
+>[0];
+type AgentSessionUpdateInput = Parameters<
+  LinearClient["updateAgentSession"]
+>[1];
+
 const LINEAR_TOKEN_URL = "https://api.linear.app/oauth/token";
 
 export { LinearClient };
@@ -118,18 +129,18 @@ export async function fetchStateIdByType(
   return sorted[0]?.id;
 }
 
-export interface IssuePatch {
-  stateId?: string;
-  assigneeId?: string;
-  delegateId?: string;
-  priority?: number;
-  addedLabelIds?: string[];
-  removedLabelIds?: string[];
-  title?: string;
-  description?: string;
-  /** TimelessDate (YYYY-MM-DD). Pass `null` to clear, omit to leave unchanged. */
-  dueDate?: string | null;
-}
+export type IssuePatch = Pick<
+  IssueUpdateInput,
+  | "stateId"
+  | "assigneeId"
+  | "delegateId"
+  | "priority"
+  | "addedLabelIds"
+  | "removedLabelIds"
+  | "title"
+  | "description"
+  | "dueDate"
+>;
 
 function isPatchEmpty(input: IssuePatch): boolean {
   return (
@@ -151,10 +162,7 @@ export async function updateIssue(
   input: IssuePatch,
 ): Promise<boolean> {
   if (!issueId || isPatchEmpty(input)) return false;
-  const payload = await client.updateIssue(
-    issueId,
-    input as Parameters<LinearClient["updateIssue"]>[1],
-  );
+  const payload = await client.updateIssue(issueId, input);
   return payload.success === true;
 }
 
@@ -171,21 +179,18 @@ export async function postActivity(
   content: ActivityContent,
   ephemeral?: boolean,
 ): Promise<boolean> {
-  const input: Record<string, unknown> = {
+  const input: AgentActivityCreateInput = {
     agentSessionId: sessionId,
     content,
   };
   if (ephemeral) input.ephemeral = true;
-  const payload = await client.createAgentActivity(
-    input as Parameters<LinearClient["createAgentActivity"]>[0],
-  );
+  const payload = await client.createAgentActivity(input);
   return payload.success === true;
 }
 
-export interface ExternalUrlInput {
-  label: string;
-  url: string;
-}
+export type ExternalUrlInput = NonNullable<
+  AgentSessionUpdateInput["addedExternalUrls"]
+>[number];
 
 export const PLAN_STEP_STATUSES = [
   "pending",
@@ -201,12 +206,10 @@ export interface PlanStep {
   status: PlanStepStatus;
 }
 
-export interface AgentSessionPatch {
-  addedExternalUrls?: ExternalUrlInput[];
-  removedExternalUrls?: string[];
-  /** Replaces the session's plan in full; Linear renders it as a checklist. */
-  plan?: PlanStep[];
-}
+export type AgentSessionPatch = Pick<
+  AgentSessionUpdateInput,
+  "addedExternalUrls" | "removedExternalUrls" | "plan"
+>;
 
 export async function updateAgentSession(
   client: LinearClient,
@@ -221,10 +224,7 @@ export async function updateAgentSession(
   ) {
     return false;
   }
-  const payload = await client.updateAgentSession(
-    sessionId,
-    input as Parameters<LinearClient["updateAgentSession"]>[1],
-  );
+  const payload = await client.updateAgentSession(sessionId, input);
   return payload.success === true;
 }
 
