@@ -123,15 +123,16 @@ function gcInflight(): void {
   }
 }
 
-async function ensureFreshToken(
+export async function ensureFreshToken(
   api: OpenClawPluginApi,
   tokenPath: string,
   clientId?: string,
   clientSecret?: string,
+  windowMs: number = REFRESH_WINDOW_MS,
 ): Promise<LinearTokens | undefined> {
   const t = await loadTokens(tokenPath);
   if (!t) return undefined;
-  if (!t.expiresAt || t.expiresAt > Date.now() + REFRESH_WINDOW_MS) return t;
+  if (!t.expiresAt || t.expiresAt > Date.now() + windowMs) return t;
   if (!t.refreshToken || !clientId || !clientSecret) return t;
   try {
     const r = await refreshTokens({
