@@ -717,11 +717,13 @@ function buildMessage(input: {
   lines.push(
     "\nRespond concisely. Your final message will be posted back to Linear as an agent activity (visible in the agent session panel).",
   );
-  if (input.hasSourceComment) {
-    lines.push(
-      "This turn was triggered by a Linear comment. To make your reply visible to the requester in the issue's comment thread (not just the agent panel), call `linear_post_comment` with the same body before finishing with `linear_post_response`. Skip the comment for trivial acknowledgements or panel-only iteration.",
-    );
-  }
+  lines.push(
+    "Posting policy:" +
+      "\n- Live progress (fetching, running, waiting): linear_post_thought or linear_post_action — panel only, does not end the turn." +
+      "\n- Decision moments, plans, approvals, result summaries: linear_post_comment (top-level, threadUnderSourceComment omitted or false) — visible to the whole team in the main issue thread." +
+      "\n- Wrapping up a simple single back-and-forth turn with no substantive multi-step work: linear_post_response alone is fine." +
+      "\n- After multi-step work: post the result via linear_post_comment (top-level) first, then close with linear_post_response.",
+  );
   return lines.join("\n");
 }
 
