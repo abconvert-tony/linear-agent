@@ -69,9 +69,9 @@ const POST_COMMENT_PARAMETERS = {
     },
     threadUnderSourceComment: {
       type: "boolean",
-      default: true,
+      default: false,
       description:
-        "Thread the new comment under the comment that triggered this turn. Set false to post a top-level comment on the issue instead.",
+        "When true, threads the comment under the comment that triggered this turn (use only for direct replies to a specific question). Defaults to false — posts as a top-level issue comment, which is correct for decision moments, plans, approvals, and result summaries.",
     },
   },
 } as const;
@@ -266,7 +266,7 @@ const TERMINAL_SPECS: TerminalSpec[] = [
     label: "Linear: post response",
     type: "response",
     description:
-      "Post the final response to the active Linear agent session and end this turn. Use exactly once when work for this prompt is complete; the body is shown to the requester as the agent's reply.",
+      "Post the final response to the active Linear agent session and end this turn. Use for simple single back-and-forth turns where the full reply fits here. For multi-step work (plans, execution, results) post the substantive content via linear_post_comment (top-level) first, then call this with a brief acknowledgement or empty close. Use exactly once per turn.",
     successText: "Response posted to Linear.",
   },
   {
@@ -352,7 +352,7 @@ export function createPostCommentTool(
       name: "linear_post_comment",
       label: "Linear: post comment",
       description:
-        "Post a real Linear comment on the bound issue. Use this when the requester needs to see the reply in the issue's comment thread (where they posted the @-mention) — agent activities only render in the agent session panel. By default the comment threads under the comment that triggered this turn; set threadUnderSourceComment=false for a top-level issue comment. Does not end the turn — still finish with linear_post_response/error/elicitation.",
+        "Post a real Linear comment on the bound issue. Use for decision moments, plans, approvals, and result summaries — anything that must be visible to the team in the main issue thread. Posts top-level by default (threadUnderSourceComment=false); set threadUnderSourceComment=true only when directly replying to a specific question or comment. For live progress narration use linear_post_thought or linear_post_action instead. Does not end the turn — still finish with linear_post_response/error/elicitation.",
       parameters: POST_COMMENT_PARAMETERS,
       execute: async (_toolCallId, params) => {
         if (!binding.linearIssueId) {
@@ -361,7 +361,7 @@ export function createPostCommentTool(
           );
         }
         const body = readNonEmptyString(params, "body");
-        const threadUnder = params.threadUnderSourceComment !== false;
+        const threadUnder = params.threadUnderSourceComment === true;
         if (threadUnder && !binding.threadParentId) {
           throw new Error(
             "linear_post_comment: this session has no source comment to thread under. Pass threadUnderSourceComment=false to post a top-level comment on the issue.",
